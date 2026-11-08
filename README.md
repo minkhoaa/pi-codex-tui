@@ -5,10 +5,10 @@ A presentation-only extension for native Pi, using the official Codex CLI as its
 ## Install
 
 ```bash
-pi install git:github.com/OWNER/pi-codex-tui
+pi install git:github.com/minkhoaa/pi-codex-tui
 ```
 
-Replace `OWNER` with the GitHub account or organization that hosts this repository. For a local checkout, use `pi install ./`.
+For a local checkout, use `pi install ./`.
 
 In an interactive TUI session, the extension selects its Codex-inspired dark or light theme only when Pi has no theme preference or is using `system`. It preserves an explicitly selected theme, including `--use-theme` and a light/dark pair. The public `setTheme()` API persists its selection, so an orderly shutdown restores the previous setting. When that setting was absent, Pi's API can restore only `system`; it cannot remove the key. Abrupt termination can leave the Codex theme selected.
 
@@ -44,7 +44,7 @@ Pi 1.5.0 is the currently verified release. Other Pi versions are unverified; re
 Stop the Pi session before removing the package so its shutdown handler can restore the prior theme:
 
 ```bash
-pi remove git:github.com/OWNER/pi-codex-tui
+pi remove git:github.com/minkhoaa/pi-codex-tui
 ```
 
 To disable only its extension resource while keeping the package's theme files installed, use `pi config` or set that package's `extensions` filter to `[]`. Removing the package prevents it from loading in later sessions. Abrupt termination is the known restoration limitation described above.
