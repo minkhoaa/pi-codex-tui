@@ -3,7 +3,7 @@
   "name": "codex-tui-dark",
   "appearance": "dark",
   "vars": {
-    "text": "okhsl(234 3% 89%)",
+    "text": "",
     "muted": "okhsl(229 6% 67%)",
     "blue": "#63A8F8",
     "lightBlue": "#A4CDFB",

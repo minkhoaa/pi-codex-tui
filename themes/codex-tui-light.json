@@ -3,7 +3,7 @@
   "name": "codex-tui-light",
   "appearance": "light",
   "vars": {
-    "text": "okhsl(225 5% 27%)",
+    "text": "",
     "muted": "okhsl(229 8% 47%)",
     "blue": "#1C64C8",
     "lightBlue": "#386DB3",

@@ -1,27 +1,51 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { installLayoutPresentation } from "./layout.js";
 import { installUiPresentation } from "./ui.js";
 
 /**
  * Presentation-only bootstrap. Pi's public setTheme API persists its choice,
- * so restore the prior single-theme setting on orderly shutdown. Auto-paired
- * settings are left alone because the public setter cannot select or restore a pair.
+ * so apply it only over the system default and restore that setting on orderly
+ * shutdown. Explicit themes and auto-paired settings remain user-controlled.
  */
 export default function (pi: ExtensionAPI): void {
   let previousTheme: string | undefined;
   let activeTheme: string | undefined;
   let restoreTheme = false;
   let restoreUi = () => {};
+  let uiInstalled = false;
+  let themeSelectionChecked = false;
 
   pi.on("session_start", (_event, ctx) => {
     if (!ctx.hasUI || ctx.mode !== "tui") return;
 
-    restoreUi = installUiPresentation(ctx);
-    previousTheme = pi.getSettings().theme ?? "system";
-    // setTheme accepts one theme name, not Pi's persisted light/dark pair.
-    // Leave auto-paired preferences alone rather than flattening them on exit.
-    if (previousTheme.includes("/")) return;
+    if (!uiInstalled) {
+      const restoreEditor = installUiPresentation(ctx);
+      const restoreLayout = installLayoutPresentation(ctx);
+      restoreUi = () => {
+        restoreLayout();
+        restoreEditor();
+      };
+      uiInstalled = true;
+    }
 
+    if (themeSelectionChecked) return;
+    themeSelectionChecked = true;
     const codexTheme = ctx.ui.theme.appearance === "light" ? "codex-tui-light" : "codex-tui-dark";
+
+    // Theme changes use Pi's settings-backed setTheme API. Auto-select only
+    // when Pi is using its system default, or when this package's own theme is
+    // already selected. Preserve any deliberate user-selected theme.
+    const configuredTheme = pi.getSettings().theme;
+    const activeThemeName = ctx.ui.theme.name;
+    previousTheme = configuredTheme ?? "system";
+    if (
+      (configuredTheme !== undefined && configuredTheme !== "system" && configuredTheme !== codexTheme) ||
+      configuredTheme?.includes("/") ||
+      (activeThemeName !== "system" && activeThemeName !== codexTheme)
+    ) {
+      return;
+    }
+
     const result = ctx.ui.setTheme(codexTheme);
     restoreTheme = result.success;
     activeTheme = result.success ? codexTheme : undefined;
@@ -30,6 +54,7 @@ export default function (pi: ExtensionAPI): void {
   pi.on("session_shutdown", (_event, ctx) => {
     restoreUi();
     restoreUi = () => {};
+    uiInstalled = false;
     if (
       !restoreTheme ||
       !previousTheme ||

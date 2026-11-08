@@ -89,55 +89,57 @@ try {
   options = parseArgs(process.argv.slice(2));
   if (options.help) {
     process.stdout.write(usage());
-    process.exit(0);
   }
 } catch (error) {
   process.stderr.write(`${error.message}\n\n${usage()}`);
-  process.exit(2);
+  process.exitCode = 2;
+  options = { help: true };
 }
 
-const command = [
-  `stty rows ${options.rows} cols ${options.cols}`,
-  `exec ${options.command.map(shellQuote).join(" ")}`,
-].join("; ");
-const child = spawn("script", ["-qefc", command, options.output], {
-  stdio: "inherit",
-  detached: true,
-});
+if (!options.help) {
+  const command = [
+    `stty rows ${options.rows} cols ${options.cols}`,
+    `exec ${options.command.map(shellQuote).join(" ")}`,
+  ].join("; ");
+  const child = spawn("script", ["-qefc", command, options.output], {
+    stdio: "inherit",
+    detached: true,
+  });
 
-let timedOut = false;
-let escalationTimer;
-const timeoutTimer = options.timeout === undefined
-  ? undefined
-  : setTimeout(() => {
-      timedOut = true;
-      try {
-        process.kill(-child.pid, "SIGINT");
-      } catch {}
-      escalationTimer = setTimeout(() => {
+  let timedOut = false;
+  let escalationTimer;
+  const timeoutTimer = options.timeout === undefined
+    ? undefined
+    : setTimeout(() => {
+        timedOut = true;
         try {
-          process.kill(-child.pid, "SIGTERM");
+          process.kill(-child.pid, "SIGINT");
         } catch {}
-      }, 1500);
-      escalationTimer.unref();
-    }, options.timeout * 1000);
-timeoutTimer?.unref();
+        escalationTimer = setTimeout(() => {
+          try {
+            process.kill(-child.pid, "SIGTERM");
+          } catch {}
+        }, 1500);
+        escalationTimer.unref();
+      }, options.timeout * 1000);
+  timeoutTimer?.unref();
 
-child.on("error", (error) => {
-  clearTimeout(timeoutTimer);
-  clearTimeout(escalationTimer);
-  process.stderr.write(`Could not start util-linux script: ${error.message}\n`);
-  process.exitCode = 1;
-});
+  child.on("error", (error) => {
+    clearTimeout(timeoutTimer);
+    clearTimeout(escalationTimer);
+    process.stderr.write(`Could not start util-linux script: ${error.message}\n`);
+    process.exitCode = 1;
+  });
 
-child.on("close", (code, signal) => {
-  clearTimeout(timeoutTimer);
-  clearTimeout(escalationTimer);
-  if (timedOut) {
-    process.stderr.write(`Capture stopped after ${options.timeout}s. Output: ${options.output}\n`);
-    process.exitCode = 124;
-  } else {
-    process.stderr.write(`Capture finished. Output: ${options.output}\n`);
-    process.exitCode = code ?? (signal ? 128 : 1);
-  }
-});
+  child.on("close", (code, signal) => {
+    clearTimeout(timeoutTimer);
+    clearTimeout(escalationTimer);
+    if (timedOut) {
+      process.stderr.write(`Capture stopped after ${options.timeout}s. Output: ${options.output}\n`);
+      process.exitCode = 124;
+    } else {
+      process.stderr.write(`Capture finished. Output: ${options.output}\n`);
+      process.exitCode = code ?? (signal ? 128 : 1);
+    }
+  });
+}

@@ -86,15 +86,15 @@ Zentui's source demonstrates native `CustomEditor` composition, tool renderer re
 | Component | Classification | Documented Pi surface | Verified boundary / remaining proof |
 |---|---|---|---|
 | Theme palette and semantic colors | `SUPPORTED` for tokens; `PARTIAL` for exact Codex color adaptation | Package theme JSON, theme schema, `ctx.ui.setTheme()` | Theme files parse and local Pi 1.5.0 applied/restored a single theme in an earlier runtime check. Success/addition use ANSI green (`2`), error/deletion ANSI red (`1`), and warning ANSI yellow (`3`) on dark themes or terminal default on light themes. Codex blends some fills with terminal background and color depth; static themes cannot establish exact parity. |
-| User/assistant Markdown content | `SUPPORTED` for display-only transform; `PARTIAL` for Codex appearance | `pi.registerMarkdownTransformer()` with message type, streaming flag, width | Pi 1.5.0 implementation/docs say transformed display text does not replace session/model content and rerenders on streaming, restore, and resize. It does not replace outer transcript rows or access structured image attachments. Keep transforms identity unless a tested formatting need exists. |
+| User/assistant Markdown content | `SUPPORTED` through native renderer; `PARTIAL` for Codex appearance | Native Pi Markdown and theme tokens; optional display transformer not registered | Pi native renderer owns wrapping/streaming/restore/resize; this package leaves text and structured image attachments untouched. No outer-row geometry hook exists. |
 | User row geometry, grouping, alignment, padding | `BLOCKED` under public API constraint | Theme content colors; Markdown transform affects content only | No documented built-in transcript row replacement hook. A different geometry requires private internals or a second renderer, both forbidden. |
-| Assistant and thinking row/activity layout | `PARTIAL` for Markdown and labels; `BLOCKED` for full row ownership | Markdown transform; hidden-thinking label; working indicator/status | Built-in interactive mode owns streaming message cells and viewport. No public way found to replace all transient/completed activity cells. |
+| Assistant and thinking row/activity layout | `NATIVE FALLBACK`; `BLOCKED` for Codex row ownership | Pi's built-in Markdown and thinking/progress UI | Built-in interactive mode owns streaming cells and viewport. This package does not transform thinking text or replace transient/completed activity cells. |
 | Tool calls and results | `SUPPORTED` for targeted rendering; `PARTIAL` for full Codex parity | Composable `registerToolRenderer()` with `next()` and execution/result context | Pi owns execution, approval/cancellation, expansion and image lifecycle. Theme-only first; any targeted renderer must preserve native fallthrough and unknown/custom tools. Live renderer/approval/error/expand proof remains. |
 | Diffs | `SUPPORTED` for semantic colors; `PARTIAL` for layout | Theme diff roles; tool renderer | Native renderer should remain for per-file detail and interaction. No evidence for Codex grouping/truncation parity yet. |
 | Editor/composer | `SUPPORTED` for conservative border styling; `PARTIAL` for exact geometry and full input parity | `CustomEditor`, `setEditorComponent()`, native keybindings | Implemented wrapper hides horizontal rules when not conveying status/overflow and delegates all input to Pi. Runtime factory/render path passed; paste, history, autocomplete, multiline, attachments, IME, resize, and editor-extension coexistence still need regression tests. |
-| Header/footer/status | `SUPPORTED` within component API; `PARTIAL` for state parity | `setHeader()`, `setFooter()`, `setStatus()`, working indicator | Header/footer replacement points are singleton; custom footer must retain relevant status data. Composition with other UI extensions is not guaranteed. |
+| Header/footer/status | `PARTIAL` | `setFooter()`, `setStatus()`, working indicator; header API unused | Custom footer retains branch and extension status values plus model/thinking/context. Header stays native because there is no getter/composition surface. Existing third-party footer composition/restoration is unavailable. |
 | Transcript viewport, scroll and global layout | `BLOCKED` under documented extension APIs | No replacement API found; custom components only own their surfaces | Pi interactive mode owns its `ScrollView`, history container and viewport. Preserve that native geometry and describe it as a measured deviation. |
-| Package install/disable/remove | `SUPPORTED` | Standard Pi package resources and CLI lifecycle commands | Docs confirm local/git install, resource disable and remove. Isolated full lifecycle and abrupt-exit restoration still need verification. |
+| Package install/disable/remove | `SUPPORTED` | Standard Pi package resources and CLI lifecycle commands | Local install/list/launch, resource disable and package removal were exercised in temporary agent directories. Abrupt-exit restoration remains impossible through the public theme lifecycle. |
 | No model/context/input changes | `SUPPORTED` for theme/display APIs only | Theme + Markdown display transform + renderers; no prompt/input/event hooks | Markdown guarantee explicitly preserves original message. Acceptance still requires comparing identical serialized requests, tools, input and session events. |
 
 ### Component architecture
@@ -104,14 +104,13 @@ Native Pi interactive process (unmodified)
   └─ Pi extension/resource loader
       └─ pi-codex-tui (presentation resources only)
           ├─ Codex-derived dark/light theme tokens
-          ├─ Optional identity/conservative Markdown display transformer
-          ├─ Optional wrapper around existing CustomEditor factory
-          ├─ Header/footer/status components using Pi TUI primitives
-          └─ Targeted tool renderer only where a measured native gap warrants it
+          ├─ CustomEditor border styling when no other editor factory is installed
+          ├─ Footer component using Pi TUI primitives (header remains native)
+          └─ Native tool renderers styled through theme tokens
       └─ Pi-owned transcript rows, viewport, editor behavior, tool execution and session/model data
 ```
 
-No new application framework, prompt or tool is needed. Renderer callbacks stay synchronous and inexpensive. Components that cannot be safely composed fall back to Pi's current renderer/factory. The editor/header/footer/tool branches are independent once their interfaces and fallback rules are proven; theme tokens are their shared dependency. Transcript geometry and viewport work is excluded because the documented API boundary blocks it.
+No new application framework, prompt or tool is needed. Renderer callbacks stay synchronous and inexpensive. The editor is left untouched when another factory is already installed; the header remains native; and built-in tool renderers continue unchanged. The custom footer is the one singleton replacement point and cannot preserve a pre-existing third-party factory because Pi exposes no getter. Theme tokens are shared by the supported surfaces. Transcript geometry and viewport work is excluded because the documented API boundary blocks it.
 
 ### API compatibility assessment and architecture decision
 
@@ -128,12 +127,11 @@ The verified extension surface is broad enough for a **partial, native visual ex
 
 ### Prioritized implementation backlog after proof gate
 
-1. **P0 complete:** pin the Codex CLI/source release and document the supported/blocked boundary and disable/restore limitation.
-2. **P0 complete for chosen surfaces:** prove editor factory rendering and package install/disable/remove using isolated settings. Renderer customization was excluded, so no live renderer proof is used to justify behavior changes.
-3. **P1 complete for source tokens:** map Codex's semantic green/red/yellow behavior to Pi palette values where supported; retain separate dark/light themes and static-theme limitations.
-4. **P1 implemented:** hide idle editor horizontal rules through a wrapped Pi `CustomEditor`; all input remains delegated. Header/footer replacement remains unused to avoid hiding Pi/other-extension status data.
-5. **P1 deferred:** no custom tool renderers until a paired screenshot demonstrates a gap that can be fixed without losing Pi's native tool summaries, diffs, images, approvals, cancellation or expansion behavior.
-6. **P2 remaining:** authenticated equivalent-session PTY/screenshot comparisons, input/session/request parity, disable/restore matrix, and performance benchmarks; publish measured differences, not an unsubstantiated parity percentage.
+1. **P0 implementation:** keep package and resources within Pi's standard package lifecycle; runtime verification below covers install/list/launch/disable/remove in isolated settings.
+2. **P1 implemented:** ship dark/light semantic tokens, conservative editor framing, and a status-preserving footer. Native Markdown and tool renderers handle content and execution states.
+3. **P1 blocked/partial:** exact Codex user/assistant row geometry, transcript viewport, and header replacement remain unavailable or unsafe to compose through the documented API.
+4. **P1 unverified:** no equivalent authenticated Codex/Pi screenshots, fixture parity comparison, or pixel/cell metric exists.
+5. **P2 unverified:** shortcut, autocomplete, attachment, session, subagent, serialized request, extension-order, and performance suites remain outstanding.
 
 ### Dependency graph
 
@@ -154,8 +152,31 @@ Editor and tool proofs are independent. Theme review can proceed in parallel wit
 - **Performance:** paired enabled/disabled runs on pinned Pi/Node/host/terminal, warm-up then repeated runs; record startup readiness, idle RSS/CPU, streaming update and large transcript reflow cost, resize-to-stable latency, median/p95 and confidence intervals. Declare budgets before measuring and keep instrumentation outside render callbacks.
 - **Lifecycle:** isolated `PI_CODING_AGENT_DIR`; verify install/list, standard `pi` launch, extension-resource disable, package removal, clean shutdown/reload/session replacement, previous single theme, paired theme, absent preference and abrupt exit. Document that `setTheme()` cannot exactly restore an absent key or recover after abrupt termination.
 
-### Gate status (before full implementation)
+### Gate status (before integrated implementation)
 
 **Source-evidence gate: passed for architecture of the supported subset.** Phase 1 found documented Pi APIs and exact boundaries; all six assigned reports are present above. A temporary Pi 1.5.0 TUI proof exercised a wrapped `CustomEditor` factory, its render path, custom header/footer factories, and orderly restoration of the built-in factories. It added no prompts, tools, input changes, or model calls. An isolated `PI_CODING_AGENT_DIR` package proof installed and listed `./`, disabled the package's extension resource with the documented `extensions: []` filter, launched Pi without loading that resource, then removed the package and observed an empty package list/settings array. These checks close the chosen theme/editor/header/footer and install/disable/remove feasibility gates. They do not verify editor keystroke/IME/attachment parity, renderer execution, extension-order coexistence, or Codex visual parity.
 
 **Implementation gate: passed for the documented safe subset.** Full transcript layout and viewport requirements remain `BLOCKED`; tool renderers are excluded until targeted value justifies their compatibility cost. The integrated package now applies theme tokens and a border-only `CustomEditor` wrapper. The wrapper was exercised in an isolated TUI proof; no keystroke, paste, image, IME, or resize parity suite has run. No reference screenshot comparison is claimed: isolated Codex 0.167.0 stopped at first-run sign-in, so its startup screen is not a comparable conversation fixture. Theme clean-shutdown restoration was exercised in the original local runtime check; abrupt termination can leave the selected theme setting behind.
+
+### Integrated implementation status (2026-11-08)
+
+The following describes the current repository implementation and supersedes the pre-integration status above where they differ.
+
+| Area | Current status | Evidence / limitation |
+|---|---|---|
+| Theme and semantic tool/diff colors | `IMPLEMENTED`, visual match `UNVERIFIED` | Dark/light theme JSON uses Codex-derived accents and semantic colors; primary text uses Pi's terminal-default foreground. Static user fills still approximate terminal-relative blending. |
+| Composer/editor | `IMPLEMENTED`, input parity `UNVERIFIED` | `src/ui.ts` installs a `CustomEditor` only if no other editor factory is already configured. It suppresses idle borders and leaves Pi's native key, autocomplete, paste and attachment code in control. |
+| Footer | `IMPLEMENTED`, extension-order compatibility `PARTIAL` | `src/layout.ts` displays model, thinking level, context percentage, branch and sanitized extension statuses. The public API exposes no getter for an existing custom footer; cleanup restores Pi's default footer, so a third-party custom footer cannot be composed or restored. |
+| Header | `NATIVE FALLBACK` | Kept as Pi provides it because the public API has no getter/composition mechanism for an existing header. |
+| Markdown, assistant/user messages, thinking and streaming | `NATIVE FALLBACK` | No transformer is registered: Pi's native Markdown renderer already handles display, wrapping, streaming, restore and resize. The extension leaves message text, structured attachments and activity layout alone. |
+| Tool calls, results and diffs | `NATIVE RENDERERS + THEME` | No custom resolver is registered. Pi's specialized built-in renderers retain arguments, result details, expansion, truncation, images, errors and diff layout while consuming the package theme's semantic colors. |
+| Transcript rows, grouping, spacing, viewport and scroll | `BLOCKED` | No documented extension surface owns these built-in components; native Pi geometry remains. |
+| Model/context/request behavior | `SOURCE CHECKED`, runtime payload parity `UNVERIFIED` | Extension source registers no prompts, tools, providers, input transforms, Markdown transformers or behavior/session event handlers. Deterministic request payload comparison was not available. |
+| Package lifecycle | `VERIFIED` for local resource lifecycle | Local `pi install ./`, `pi list`, normal TUI startup, `extensions: []` disable, and `pi remove ./` were exercised using temporary agent directories. Clean shutdown restored an absent preference to `system`; explicit `dark` and `--use-theme light` selections were preserved. |
+| Automated checks | `PARTIAL` | `npm test` validates package resources, theme schema and source-level visual-only invariants. Strict TypeScript 7.0.2 no-emit compilation of all `src/*.ts` against installed Pi 1.5.0 declarations passes. The capture helper passes syntax and help checks. No lint or build script exists; the extension runs as TypeScript through Pi. |
+| Visual comparison | `UNVERIFIED` | The integrated Pi TUI rendered under PTY at 80x24. The available Codex 0.167.0 capture is first-run sign-in, not a comparable chat; no paired screenshot/cell metric or fidelity percentage is defensible. |
+| Performance | `UNVERIFIED` | No repeated startup, CPU, memory, render or resize benchmark was run. No provider was configured, so the smoke did not make a model request. |
+
+The Codex theme is selected only when Pi's saved preference is unset/`system` or already selects the matching bundled Codex theme, and the active theme is `system` or that matching theme. A different explicit single theme, `--use-theme` override, and a saved light/dark pair are preserved. Pi's public setter persists settings and cannot remove an originally absent key; a clean shutdown restores the effective prior `system` theme, but an abrupt termination may leave the Codex theme selected. If a user explicitly changes the theme during the session, shutdown does not overwrite that later selection.
+
+The plugin has no build or lint configuration because Pi loads the TypeScript extension directly. Run `npm test`, `node --check scripts/capture-tui.mjs`, and the Pi 1.5.0 strict typecheck for the supported static checks. Equivalent authenticated Codex/Pi fixtures, screenshot/cell metrics, functional input/tool/session parity, extension coexistence, and performance measurements remain required before any claim of production parity.
